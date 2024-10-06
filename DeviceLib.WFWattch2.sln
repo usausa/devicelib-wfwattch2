@@ -16,9 +16,26 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		README.md = README.md
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientTest", "Sandbox\ClientTest\ClientTest.csproj", "{A2625DEF-ED68-4A8B-9EF2-40922E2C4FA2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sandbox", "Sandbox", "{558A9B50-F7DD-41C3-BFFC-8DF29166ADCC}"
+EndProject
 Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A2625DEF-ED68-4A8B-9EF2-40922E2C4FA2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A2625DEF-ED68-4A8B-9EF2-40922E2C4FA2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A2625DEF-ED68-4A8B-9EF2-40922E2C4FA2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A2625DEF-ED68-4A8B-9EF2-40922E2C4FA2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A2625DEF-ED68-4A8B-9EF2-40922E2C4FA2} = {558A9B50-F7DD-41C3-BFFC-8DF29166ADCC}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {23CB8B3A-BA00-41DB-B5F8-BCB599F1AB07}
