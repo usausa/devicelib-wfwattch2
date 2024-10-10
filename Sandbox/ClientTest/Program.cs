@@ -9,11 +9,12 @@ public static class Program
     public static async Task Main()
     {
         using var client = new Watch2Client(IPAddress.Parse("192.168.100.172"));
-        while (true)
+
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
         {
             await client.UpdateAsync().ConfigureAwait(false);
             Console.WriteLine($"{client.DateTime:yyyy/MM/dd HH:mm:ss}: 電力={client.Power:F3}W, 電圧={client.Voltage:F3}V, 電流={client.Current * 1000.0:F3}A");
-            await Task.Delay(1000).ConfigureAwait(false);
         }
     }
 }
@@ -34,10 +35,12 @@ public sealed class Watch2Client : IDisposable
 
     public double? Power { get; private set; }
 
+#pragma warning disable CA1810
     static Watch2Client()
     {
         MeasureCommand = MakeCommand([0x18, 0x00]);
     }
+#pragma warning restore CA1810
 
     public Watch2Client(IPAddress address)
     {

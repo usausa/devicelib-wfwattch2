@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <CodeAnalysisRuleSet>..\Analyzers.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>DeviceLib.WFWattch2</PackageId>
+    <Title>DeviceLib.WFWattch2</Title>
+    <Description>Library for WFWATTCH2.</Description>
+    <PackageTags>device wfwattch2</PackageTags>
+  </PropertyGroup>
+
+</Project>
