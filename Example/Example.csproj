@@ -6,4 +6,8 @@
     <CodeAnalysisRuleSet>..\Analyzers.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DeviceLib.WFWattch2\DeviceLib.WFWattch2.csproj" />
+  </ItemGroup>
+
 </Project>
