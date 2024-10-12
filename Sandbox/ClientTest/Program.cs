@@ -1,31 +1,52 @@
 namespace ClientTest;
 
 using System;
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 
 public static class Program
 {
     public static async Task Main()
     {
-        using var client = new Watch2Client(IPAddress.Parse("192.168.100.172"));
+        using var client = new Watch2Client(IPAddress.Parse("192.168.100.171"));
 
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
         {
-            await client.UpdateAsync().ConfigureAwait(false);
-            Console.WriteLine($"{client.DateTime:yyyy/MM/dd HH:mm:ss}: 電力={client.Power:F3}W, 電圧={client.Voltage:F3}V, 電流={client.Current * 1000.0:F3}A");
+#pragma warning disable CA1031
+            try
+            {
+                await client.UpdateAsync().ConfigureAwait(false);
+                Console.WriteLine($"{client.DateTime:yyyy/MM/dd HH:mm:ss}: 電力={client.Power:F3}W, 電圧={client.Voltage:F3}V, 電流={client.Current * 1000.0:F3}A");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+#pragma warning restore CA1031
         }
     }
 }
 
 public sealed class Watch2Client : IDisposable
 {
+    private const int Timeout = 5000;
+
     private const int Port = 60121;
 
     private static readonly byte[] MeasureCommand;
 
+    private readonly ReusableCancellationTokenSource cts = new();
+
     private readonly IPEndPoint endPoint;
+
+    private readonly byte[] buffer;
+
+    private bool disposed;
+
+    public byte LastError { get; private set; }
 
     public DateTime? DateTime { get; private set; }
 
@@ -45,39 +66,146 @@ public sealed class Watch2Client : IDisposable
     public Watch2Client(IPAddress address)
     {
         endPoint = new IPEndPoint(address, Port);
+        buffer = ArrayPool<byte>.Shared.Rent(256);
     }
 
     public void Dispose()
     {
+        if (!disposed)
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+
+            cts.Dispose();
+
+            disposed = true;
+        }
     }
 
-    public async ValueTask UpdateAsync()
+    private void ClearValues()
     {
-        // TODO
-        using var client = new TcpClient();
-        await client.ConnectAsync(endPoint).ConfigureAwait(false);
+        Voltage = null;
+        Current = null;
+        Power = null;
+        DateTime = null;
+    }
 
-        client.Client.Send(MeasureCommand);
+    public ValueTask<bool> UpdateAsync()
+    {
+        ClearValues();
+        return ProcessAsync(0x18, MeasureCommand);
+    }
 
-        var array = new byte[256];
-        var read = client.Client.Receive(array);
+    private async ValueTask<bool> ProcessAsync(byte code, byte[] command)
+    {
+        LastError = 0;
+
+        cts.Reset();
+        cts.CancelAfter(Timeout);
+
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.NoDelay = true;
+        socket.LingerState = new LingerOption(true, 0);
+
+        await socket.ConnectAsync(endPoint, cts.Token).ConfigureAwait(false);
+
+        if (await WriteAsync(socket, command.AsMemory(), cts.Token).ConfigureAwait(false) < 0)
+        {
+            return false;
+        }
+
+        var read = await ReadAsync(socket, buffer, cts.Token).ConfigureAwait(false);
         if (read < 0)
         {
-            return;
+            return false;
         }
 
-        if (read > 0)
+        if (buffer[3] != code)
         {
-            var num47 = array[1] & 0xFF;
-            if (num47 == 0)
-            {
-                Voltage = (double)(((long)array[10] << 40) + ((long)array[9] << 32) + ((long)array[8] << 24) + ((long)array[7] << 16) + ((long)array[6] << 8) + array[5]) / (1L << 24);
-                Current = (double)(((long)array[16] << 40) + ((long)array[15] << 32) + ((long)array[14] << 24) + ((long)array[13] << 16) + ((long)array[12] << 8) + array[11]) / (1L << 30);
-                Power = (double)(((long)array[22] << 40) + ((long)array[21] << 32) + ((long)array[20] << 24) + ((long)array[19] << 16) + ((long)array[18] << 8) + array[17]) / (1L << 24);
-                DateTime = new DateTime(array[28] + 2000, array[27], array[26], array[25], array[24], array[23]);
-            }
+            return false;
         }
+
+        if (CalcCrc8(buffer.AsSpan(3, read - 4)) != buffer[read - 1])
+        {
+            return false;
+        }
+
+        return code switch
+        {
+            0x18 => ProcessMeasureResponse(buffer.AsSpan(4, read - 5)),
+            _ => false
+        };
     }
+
+    private bool ProcessMeasureResponse(ReadOnlySpan<byte> response)
+    {
+        var error = response[0];
+        if (error != 0)
+        {
+            LastError = error;
+            return false;
+        }
+
+        if (response.Length < 25)
+        {
+            return false;
+        }
+
+        Voltage = (double)ReadValue(response[1..7]) / (1L << 24);
+        Current = (double)ReadValue(response[7..13]) / (1L << 30);
+        Power = (double)ReadValue(response[13..19]) / (1L << 24);
+        DateTime = ReadDateTime(response[19..25]);
+
+        return true;
+    }
+
+    private static async ValueTask<int> WriteAsync(Socket socket, ReadOnlyMemory<byte> buffer, CancellationToken cancel)
+    {
+        var offset = 0;
+        do
+        {
+            var write = await socket.SendAsync(buffer[offset..], SocketFlags.None, cancel).ConfigureAwait(false);
+            if (write <= 0)
+            {
+                return -1;
+            }
+
+            offset += write;
+        }
+        while (offset < buffer.Length);
+
+        return offset;
+    }
+
+    private static async ValueTask<int> ReadAsync(Socket socket, Memory<byte> buffer, CancellationToken cancel)
+    {
+        var offset = 0;
+        do
+        {
+            var read = await socket.ReceiveAsync(buffer[offset..], cancel).ConfigureAwait(false);
+            if (read <= 0)
+            {
+                break;
+            }
+
+            offset += read;
+        }
+        while ((offset >= 3) && (offset >= (buffer.Span[1] + 4)));
+
+        return offset;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static long ReadValue(ReadOnlySpan<byte> buffer) =>
+        ((long)buffer[5] << 40) +
+        ((long)buffer[4] << 32) +
+        ((long)buffer[3] << 24) +
+        ((long)buffer[2] << 16) +
+        ((long)buffer[1] << 8) +
+        buffer[0];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static DateTime ReadDateTime(ReadOnlySpan<byte> buffer) =>
+        new(buffer[5] + 2000, buffer[4], buffer[3], buffer[2], buffer[1], buffer[0]);
 
     public static byte[] MakeCommand(Span<byte> payload)
     {
@@ -119,4 +247,27 @@ public sealed class Watch2Client : IDisposable
         0x4C, 0xC9, 0xC3, 0x46, 0xD7, 0x52, 0x58, 0xDD, 0xFF, 0x7A, 0x70, 0xF5, 0x64, 0xE1, 0xEB, 0x6E,
         0xAF, 0x2A, 0x20, 0xA5, 0x34, 0xB1, 0xBB, 0x3E, 0x1C, 0x99, 0x93, 0x16, 0x87, 0x02, 0x08, 0x8D
     ];
+}
+
+public sealed class ReusableCancellationTokenSource : IDisposable
+{
+    private CancellationTokenSource cts = new();
+
+    public CancellationToken Token => cts.Token;
+
+    public void Dispose()
+    {
+        cts.Dispose();
+    }
+
+    public void Reset()
+    {
+        if (!cts.TryReset())
+        {
+            cts.Dispose();
+            cts = new CancellationTokenSource();
+        }
+    }
+
+    public void CancelAfter(int millisecondsDelay) => cts.CancelAfter(millisecondsDelay);
 }
