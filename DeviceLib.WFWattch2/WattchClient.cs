@@ -69,9 +69,11 @@ public sealed class WattchClient : IDisposable
             return ValueTask.CompletedTask;
         }
 
-        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        socket.NoDelay = true;
-        socket.LingerState = new LingerOption(true, 0);
+        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+        {
+            NoDelay = true,
+            LingerState = new LingerOption(true, 0)
+        };
 
         return socket.ConnectAsync(endPoint, token);
     }
