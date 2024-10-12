@@ -1,7 +1,10 @@
 namespace DeviceLib.WFWattch2;
 
+using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 
 public sealed class WattchClient : IDisposable
 {
@@ -11,7 +14,13 @@ public sealed class WattchClient : IDisposable
 
     private readonly IPEndPoint endPoint;
 
-    // TODO keep connection
+    private readonly byte[] buffer;
+
+    private Socket? socket;
+
+    private bool disposed;
+
+    public byte LastError { get; private set; }
 
     public DateTime? DateTime { get; private set; }
 
@@ -31,40 +40,172 @@ public sealed class WattchClient : IDisposable
     public WattchClient(IPAddress address)
     {
         endPoint = new IPEndPoint(address, Port);
+        buffer = ArrayPool<byte>.Shared.Rent(256);
     }
 
     public void Dispose()
     {
+        if (!disposed)
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+
+            disposed = true;
+        }
+
+        Close();
     }
 
-    public async ValueTask UpdateAsync()
+    [MemberNotNullWhen(true, nameof(socket))]
+    public bool IsConnected() =>
+        (socket is not null) &&
+        socket.Connected &&
+        !socket.Poll(0, SelectMode.SelectRead) &&
+        (socket.Available == 0);
+
+    public ValueTask ConnectAsync(CancellationToken token = default)
     {
-        // TODO
-        using var client = new TcpClient();
-        await client.ConnectAsync(endPoint).ConfigureAwait(false);
+        if (IsConnected())
+        {
+            return ValueTask.CompletedTask;
+        }
 
-        client.Client.Send(MeasureCommand);
+        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.NoDelay = true;
+        socket.LingerState = new LingerOption(true, 0);
 
-        // TODO Fix
-        var array = new byte[256];
-        var read = client.Client.Receive(array);
+        return socket.ConnectAsync(endPoint, token);
+    }
+
+    public void Close()
+    {
+        socket?.Close();
+        socket?.Dispose();
+        socket = null;
+    }
+
+    private void ClearValues()
+    {
+        Voltage = null;
+        Current = null;
+        Power = null;
+        DateTime = null;
+    }
+
+    public ValueTask<bool> UpdateAsync(CancellationToken token = default)
+    {
+        ClearValues();
+        return ProcessAsync(0x18, MeasureCommand, token);
+    }
+
+    private async ValueTask<bool> ProcessAsync(byte code, byte[] command, CancellationToken token)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+
+        LastError = 0;
+
+        if (!IsConnected())
+        {
+            return false;
+        }
+
+        if (await WriteAsync(socket, command.AsMemory(), token).ConfigureAwait(false) < 0)
+        {
+            return false;
+        }
+
+        var read = await ReadAsync(socket, buffer, token).ConfigureAwait(false);
         if (read < 0)
         {
-            return;
+            return false;
         }
 
-        if (read > 0)
+        if (buffer[3] != code)
         {
-            var num47 = array[1] & 0xFF;
-            if (num47 == 0)
-            {
-                Voltage = (double)(((long)array[10] << 40) + ((long)array[9] << 32) + ((long)array[8] << 24) + ((long)array[7] << 16) + ((long)array[6] << 8) + array[5]) / (1L << 24);
-                Current = (double)(((long)array[16] << 40) + ((long)array[15] << 32) + ((long)array[14] << 24) + ((long)array[13] << 16) + ((long)array[12] << 8) + array[11]) / (1L << 30);
-                Power = (double)(((long)array[22] << 40) + ((long)array[21] << 32) + ((long)array[20] << 24) + ((long)array[19] << 16) + ((long)array[18] << 8) + array[17]) / (1L << 24);
-                DateTime = new DateTime(array[28] + 2000, array[27], array[26], array[25], array[24], array[23]);
-            }
+            return false;
         }
+
+        if (CalcCrc8(buffer.AsSpan(3, read - 4)) != buffer[read - 1])
+        {
+            return false;
+        }
+
+        return code switch
+        {
+            0x18 => ProcessMeasureResponse(buffer.AsSpan(4, read - 5)),
+            _ => false
+        };
     }
+
+    private bool ProcessMeasureResponse(ReadOnlySpan<byte> response)
+    {
+        var error = response[0];
+        if (error != 0)
+        {
+            LastError = error;
+            return false;
+        }
+
+        if (response.Length < 25)
+        {
+            return false;
+        }
+
+        Voltage = (double)ReadValue(response[1..7]) / (1L << 24);
+        Current = (double)ReadValue(response[7..13]) / (1L << 30);
+        Power = (double)ReadValue(response[13..19]) / (1L << 24);
+        DateTime = ReadDateTime(response[19..25]);
+
+        return true;
+    }
+
+    private static async ValueTask<int> WriteAsync(Socket socket, ReadOnlyMemory<byte> buffer, CancellationToken cancel)
+    {
+        var offset = 0;
+        do
+        {
+            var write = await socket.SendAsync(buffer[offset..], SocketFlags.None, cancel).ConfigureAwait(false);
+            if (write <= 0)
+            {
+                return -1;
+            }
+
+            offset += write;
+        }
+        while (offset < buffer.Length);
+
+        return offset;
+    }
+
+    private static async ValueTask<int> ReadAsync(Socket socket, Memory<byte> buffer, CancellationToken cancel)
+    {
+        var offset = 0;
+        do
+        {
+            var read = await socket.ReceiveAsync(buffer[offset..], cancel).ConfigureAwait(false);
+            if (read <= 0)
+            {
+                break;
+            }
+
+            offset += read;
+        }
+        while ((offset >= 3) && (offset >= (buffer.Span[1] + 4)));
+
+        return offset;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static long ReadValue(ReadOnlySpan<byte> buffer) =>
+        ((long)buffer[5] << 40) +
+        ((long)buffer[4] << 32) +
+        ((long)buffer[3] << 24) +
+        ((long)buffer[2] << 16) +
+        ((long)buffer[1] << 8) +
+        buffer[0];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static DateTime ReadDateTime(ReadOnlySpan<byte> buffer) =>
+        new(buffer[5] + 2000, buffer[4], buffer[3], buffer[2], buffer[1], buffer[0]);
 
     public static byte[] MakeCommand(Span<byte> payload)
     {
