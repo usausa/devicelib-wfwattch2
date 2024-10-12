@@ -121,12 +121,9 @@ public sealed class WattchClient : IDisposable
             return false;
         }
 
-        if (buffer[3] != code)
-        {
-            return false;
-        }
-
-        if (CalcCrc8(buffer.AsSpan(3, read - 4)) != buffer[read - 1])
+        if ((buffer[0] != 0xAA) ||
+            (buffer[3] != code) ||
+            (CalcCrc8(buffer.AsSpan(3, read - 4)) != buffer[read - 1]))
         {
             return false;
         }
