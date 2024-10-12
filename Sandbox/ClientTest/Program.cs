@@ -2,6 +2,7 @@ namespace ClientTest;
 
 using System;
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -12,18 +13,35 @@ public static class Program
     {
         using var client = new Watch2Client(IPAddress.Parse("192.168.100.171"));
 
+        using var cts = new ReusableCancellationTokenSource();
+
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
         {
 #pragma warning disable CA1031
             try
             {
-                await client.UpdateAsync().ConfigureAwait(false);
-                Console.WriteLine($"{client.DateTime:yyyy/MM/dd HH:mm:ss}: 電力={client.Power:F3}W, 電圧={client.Voltage:F3}V, 電流={client.Current * 1000.0:F3}A");
+                cts.Reset();
+                cts.CancelAfter(5000);
+
+                if (!client.IsConnected())
+                {
+                    await client.ConnectAsync(cts.Token).ConfigureAwait(false);
+                }
+
+                if (await client.UpdateAsync(cts.Token).ConfigureAwait(false))
+                {
+                    Console.WriteLine($"{client.DateTime:yyyy/MM/dd HH:mm:ss}: Power={client.Power:F3}W, Voltage={client.Voltage:F3}V, Current={client.Current * 1000.0:F3}A");
+                }
+                else
+                {
+                    client.Close();
+                }
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                client.Close();
             }
 #pragma warning restore CA1031
         }
@@ -32,17 +50,15 @@ public static class Program
 
 public sealed class Watch2Client : IDisposable
 {
-    private const int Timeout = 5000;
-
     private const int Port = 60121;
 
     private static readonly byte[] MeasureCommand;
 
-    private readonly ReusableCancellationTokenSource cts = new();
-
     private readonly IPEndPoint endPoint;
 
     private readonly byte[] buffer;
+
+    private Socket? socket;
 
     private bool disposed;
 
@@ -75,10 +91,38 @@ public sealed class Watch2Client : IDisposable
         {
             ArrayPool<byte>.Shared.Return(buffer);
 
-            cts.Dispose();
-
             disposed = true;
         }
+
+        Close();
+    }
+
+    [MemberNotNullWhen(true, nameof(socket))]
+    public bool IsConnected() =>
+        (socket is not null) &&
+        socket.Connected &&
+        !socket.Poll(0, SelectMode.SelectRead) &&
+        (socket.Available == 0);
+
+    public ValueTask ConnectAsync(CancellationToken token = default)
+    {
+        if (IsConnected())
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.NoDelay = true;
+        socket.LingerState = new LingerOption(true, 0);
+
+        return socket.ConnectAsync(endPoint, token);
+    }
+
+    public void Close()
+    {
+        socket?.Close();
+        socket?.Dispose();
+        socket = null;
     }
 
     private void ClearValues()
@@ -89,31 +133,29 @@ public sealed class Watch2Client : IDisposable
         DateTime = null;
     }
 
-    public ValueTask<bool> UpdateAsync()
+    public ValueTask<bool> UpdateAsync(CancellationToken token = default)
     {
         ClearValues();
-        return ProcessAsync(0x18, MeasureCommand);
+        return ProcessAsync(0x18, MeasureCommand, token);
     }
 
-    private async ValueTask<bool> ProcessAsync(byte code, byte[] command)
+    private async ValueTask<bool> ProcessAsync(byte code, byte[] command, CancellationToken token)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
+
         LastError = 0;
 
-        cts.Reset();
-        cts.CancelAfter(Timeout);
-
-        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        socket.NoDelay = true;
-        socket.LingerState = new LingerOption(true, 0);
-
-        await socket.ConnectAsync(endPoint, cts.Token).ConfigureAwait(false);
-
-        if (await WriteAsync(socket, command.AsMemory(), cts.Token).ConfigureAwait(false) < 0)
+        if (!IsConnected())
         {
             return false;
         }
 
-        var read = await ReadAsync(socket, buffer, cts.Token).ConfigureAwait(false);
+        if (await WriteAsync(socket, command.AsMemory(), token).ConfigureAwait(false) < 0)
+        {
+            return false;
+        }
+
+        var read = await ReadAsync(socket, buffer, token).ConfigureAwait(false);
         if (read < 0)
         {
             return false;
