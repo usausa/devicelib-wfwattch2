@@ -20,7 +20,7 @@ while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
 
         if (await client.UpdateAsync(cts.Token).ConfigureAwait(false))
         {
-            Console.WriteLine($"{client.DateTime:yyyy/MM/dd HH:mm:ss}: Power={client.Power:F3}W, Voltage={client.Voltage:F3}V, Current={client.Current * 1000.0:F3}A");
+            Console.WriteLine($"{client.DateTime:yyyy/MM/dd HH:mm:ss}: Power={client.Power:F2}W, Voltage={client.Voltage:F2}V, Current={client.Current * 1000.0:F0}mA");
         }
         else
         {
