@@ -24,6 +24,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Example", "Example", "{0889
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Example", "Example\Example.csproj", "{2104FEBD-6A8D-4A01-9DA8-B40AF0FACB9B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeviceTool.WFWattch2", "DeviceTool.WFWattch2\DeviceTool.WFWattch2.csproj", "{D11196C9-D0BC-4F82-BCD3-99E46E2A0E2D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tool", "Tool", "{6FF06540-9AA2-4C64-8F27-259A62D5B77E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +42,10 @@ Global
 		{2104FEBD-6A8D-4A01-9DA8-B40AF0FACB9B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2104FEBD-6A8D-4A01-9DA8-B40AF0FACB9B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2104FEBD-6A8D-4A01-9DA8-B40AF0FACB9B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D11196C9-D0BC-4F82-BCD3-99E46E2A0E2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D11196C9-D0BC-4F82-BCD3-99E46E2A0E2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D11196C9-D0BC-4F82-BCD3-99E46E2A0E2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D11196C9-D0BC-4F82-BCD3-99E46E2A0E2D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -45,6 +53,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{F7B64C26-F75D-45A1-B4F9-DD310CA46919} = {DD613962-E633-4CBF-92CC-FD221C7254CC}
 		{2104FEBD-6A8D-4A01-9DA8-B40AF0FACB9B} = {088918BF-277A-4F0C-9CDE-5C44B418CBB9}
+		{D11196C9-D0BC-4F82-BCD3-99E46E2A0E2D} = {6FF06540-9AA2-4C64-8F27-259A62D5B77E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {23CB8B3A-BA00-41DB-B5F8-BCB599F1AB07}
