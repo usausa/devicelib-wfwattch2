@@ -5,7 +5,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <CodeAnalysisRuleSet>..\Analyzers.ruleset</CodeAnalysisRuleSet>
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>wfwatch2</ToolCommandName>
+    <ToolCommandName>wfwattch2</ToolCommandName>
   </PropertyGroup>
 
   <PropertyGroup>
