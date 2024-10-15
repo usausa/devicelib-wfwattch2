@@ -188,7 +188,7 @@ public sealed class WattchClient : IDisposable
 
             offset += read;
         }
-        while ((offset >= 3) && (offset >= (buffer.Span[1] + 4)));
+        while (((offset < 3) || (offset < (buffer.Span[1] + 4))) && (offset < buffer.Length));
 
         return offset;
     }
