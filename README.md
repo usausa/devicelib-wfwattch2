@@ -2,7 +2,7 @@
 
 | Package | Info |
 |:-|:-|
-| DeviceLib.WFWattch2 | [![NuGet Badge](https://buildstats.info/nuget/DeviceLib.WFWattch2)](https://www.nuget.org/packages/DeviceLib.WFWattch2/) |
+| DeviceLib.WFWattch2 | [![NuGet](https://img.shields.io/nuget/v/DeviceLib.WFWattch2.svg)](https://www.nuget.org/packages/DeviceLib.WFWattch2) |
 
 ## Usage
 
