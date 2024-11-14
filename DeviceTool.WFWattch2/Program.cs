@@ -12,7 +12,7 @@ rootCommand.AddGlobalOption(new Option<string>(["--host", "-h"], "Host") { IsReq
 
 // Measure
 var measureCommand = new Command("measure", "Measure");
-measureCommand.Handler = CommandHandler.Create(async (IConsole console, string host) =>
+measureCommand.Handler = CommandHandler.Create(async static (IConsole console, string host) =>
 {
     using var client = new WattchClient(Helper.ResolveHost(host));
 
