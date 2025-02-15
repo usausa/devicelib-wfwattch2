@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="Analyzers.ruleset" />
+    <File Path="DeviceLib.WFWattch2.sln.DotSettings" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Library/">
+    <Project Path="DeviceLib.WFWattch2/DeviceLib.WFWattch2.csproj" />
+  </Folder>
+  <Folder Name="/Tool/">
+    <Project Path="DeviceTool.WFWattch2/DeviceTool.WFWattch2.csproj" />
+  </Folder>
+  <Folder Name="/Example/">
+    <Project Path="Example/Example.csproj" />
+  </Folder>
+</Solution>
