@@ -23,7 +23,7 @@ measureCommand.Handler = CommandHandler.Create(async static (IConsole console, s
 
     if (await client.UpdateAsync(cts.Token).ConfigureAwait(false))
     {
-        console.WriteLine($"DateTime : {client.DateTime:yyyy/MM/dd HH:mm:ss}");
+        console.WriteLine($"DateTime : {client.LastUpdate:yyyy/MM/dd HH:mm:ss}");
         console.WriteLine($"Power    : {client.Power:F2}");
         console.WriteLine($"Voltage  : {client.Voltage:F2}");
         console.WriteLine($"Current  : {client.Current * 1000.0:F0}");

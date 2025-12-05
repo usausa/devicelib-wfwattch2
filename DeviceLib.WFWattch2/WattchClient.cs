@@ -22,7 +22,7 @@ public sealed class WattchClient : IDisposable
 
     public byte LastError { get; private set; }
 
-    public DateTime? DateTime { get; private set; }
+    public DateTime? LastUpdate { get; private set; }
 
     public double? Voltage { get; private set; }
 
@@ -45,14 +45,16 @@ public sealed class WattchClient : IDisposable
 
     public void Dispose()
     {
-        if (!disposed)
+        if (disposed)
         {
-            ArrayPool<byte>.Shared.Return(buffer);
-
-            disposed = true;
+            return;
         }
 
         Close();
+
+        ArrayPool<byte>.Shared.Return(buffer);
+
+        disposed = true;
     }
 
     [MemberNotNullWhen(true, nameof(socket))]
@@ -90,7 +92,7 @@ public sealed class WattchClient : IDisposable
         Voltage = null;
         Current = null;
         Power = null;
-        DateTime = null;
+        LastUpdate = null;
     }
 
     public ValueTask<bool> UpdateAsync(CancellationToken token = default)
@@ -152,7 +154,7 @@ public sealed class WattchClient : IDisposable
         Voltage = (double)ReadValue(response[1..7]) / (1L << 24);
         Current = (double)ReadValue(response[7..13]) / (1L << 30);
         Power = (double)ReadValue(response[13..19]) / (1L << 24);
-        DateTime = ReadDateTime(response[19..25]);
+        LastUpdate = ReadDateTime(response[19..25]);
 
         return true;
     }
@@ -206,7 +208,7 @@ public sealed class WattchClient : IDisposable
     private static DateTime ReadDateTime(ReadOnlySpan<byte> buffer) =>
         new(buffer[5] + 2000, buffer[4], buffer[3], buffer[2], buffer[1], buffer[0]);
 
-    public static byte[] MakeCommand(Span<byte> payload)
+    private static byte[] MakeCommand(ReadOnlySpan<byte> payload)
     {
         var array = new byte[payload.Length + 4];
         array[0] = 0xAA;
@@ -217,7 +219,7 @@ public sealed class WattchClient : IDisposable
         return array;
     }
 
-    private static byte CalcCrc8(Span<byte> payload)
+    private static byte CalcCrc8(ReadOnlySpan<byte> payload)
     {
         var crc = 0;
         foreach (var b in payload)
