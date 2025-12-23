@@ -1,34 +1,17 @@
-// ReSharper disable UseObjectOrCollectionInitializer
-#pragma warning disable IDE0017
-using System.CommandLine;
-using System.CommandLine.NamingConventionBinder;
-
-using DeviceLib.WFWattch2;
-
 using DeviceTool.WFWattch2;
 
-var rootCommand = new RootCommand("WFWATTCH2 tool");
-rootCommand.AddGlobalOption(new Option<string>(["--host", "-h"], "Host") { IsRequired = true });
+using Smart.CommandLine.Hosting;
 
-// Measure
-var measureCommand = new Command("measure", "Measure");
-measureCommand.Handler = CommandHandler.Create(async static (IConsole console, string host) =>
+var builder = CommandHost.CreateBuilder(args);
+builder.ConfigureCommands(commands =>
 {
-    using var client = new WattchClient(Helper.ResolveHost(host));
-
-    using var cts = new CancellationTokenSource();
-    cts.CancelAfter(5000);
-
-    await client.ConnectAsync(cts.Token).ConfigureAwait(false);
-
-    if (await client.UpdateAsync(cts.Token).ConfigureAwait(false))
+    commands.ConfigureRootCommand(root =>
     {
-        console.WriteLine($"DateTime : {client.LastUpdate:yyyy/MM/dd HH:mm:ss}");
-        console.WriteLine($"Power    : {client.Power:F2}");
-        console.WriteLine($"Voltage  : {client.Voltage:F2}");
-        console.WriteLine($"Current  : {client.Current * 1000.0:F0}");
-    }
-});
-rootCommand.Add(measureCommand);
+        root.WithDescription("Rbt tool");
+    });
 
-return await rootCommand.InvokeAsync(args).ConfigureAwait(false);
+    commands.AddCommands();
+});
+
+var host = builder.Build();
+return await host.RunAsync();
