@@ -17,10 +17,10 @@ public static class CommandBuilderExtensions
 }
 
 // Measure
-[Command("measure", Description = "Measure")]
+[Command("measure", "Measure")]
 public sealed class MeasureCommand : ICommandHandler
 {
-    [Option<string>("--host", "-h", Description = "Host", IsRequired = true)]
+    [Option<string>("--host", "-h", Description = "Host", Required = true)]
     public string Host { get; set; } = default!;
 
     public async ValueTask ExecuteAsync(CommandContext context)
