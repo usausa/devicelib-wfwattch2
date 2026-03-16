@@ -13,6 +13,8 @@ public static class CommandBuilderExtensions
     public static void AddCommands(this ICommandBuilder commands)
     {
         commands.AddCommand<MeasureCommand>();
+        commands.AddCommand<RelayOnCommand>();
+        commands.AddCommand<RelayOffCommand>();
     }
 }
 
@@ -39,5 +41,47 @@ public sealed class MeasureCommand : ICommandHandler
             Console.WriteLine($"Voltage  : {client.Voltage:F2}");
             Console.WriteLine($"Current  : {client.Current * 1000.0:F0}");
         }
+    }
+}
+
+// Relay on
+[Command("on", "Relay on")]
+public sealed class RelayOnCommand : ICommandHandler
+{
+    [Option<string>("--host", "-h", Description = "Host", Required = true)]
+    public string Host { get; set; } = default!;
+
+    public async ValueTask ExecuteAsync(CommandContext context)
+    {
+        using var client = new WattchClient(Helper.ResolveHost(Host));
+
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(5000);
+
+        await client.ConnectAsync(cts.Token).ConfigureAwait(false);
+        var result = await client.RelayOnAsync(cts.Token).ConfigureAwait(false);
+
+        Console.WriteLine(result ? "OK" : "Failed");
+    }
+}
+
+// Relay off
+[Command("off", "Relay off")]
+public sealed class RelayOffCommand : ICommandHandler
+{
+    [Option<string>("--host", "-h", Description = "Host", Required = true)]
+    public string Host { get; set; } = default!;
+
+    public async ValueTask ExecuteAsync(CommandContext context)
+    {
+        using var client = new WattchClient(Helper.ResolveHost(Host));
+
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(5000);
+
+        await client.ConnectAsync(cts.Token).ConfigureAwait(false);
+        var result = await client.RelayOffAsync(cts.Token).ConfigureAwait(false);
+
+        Console.WriteLine(result ? "OK" : "Failed");
     }
 }

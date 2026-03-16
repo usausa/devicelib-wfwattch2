@@ -10,6 +10,8 @@ public sealed class WattchClient : IDisposable
 {
     private const int Port = 60121;
 
+    private static readonly byte[] RelayOnCommand;
+    private static readonly byte[] RelayOffCommand;
     private static readonly byte[] MeasureCommand;
 
     private readonly IPEndPoint endPoint;
@@ -33,6 +35,8 @@ public sealed class WattchClient : IDisposable
 #pragma warning disable CA1810
     static WattchClient()
     {
+        RelayOnCommand = MakeCommand([0x12]);
+        RelayOffCommand = MakeCommand([0x13]);
         MeasureCommand = MakeCommand([0x18, 0x00]);
     }
 #pragma warning restore CA1810
@@ -95,6 +99,16 @@ public sealed class WattchClient : IDisposable
         LastUpdate = null;
     }
 
+    public ValueTask<bool> RelayOnAsync(CancellationToken token = default)
+    {
+        return ProcessAsync(0x12, RelayOnCommand, token);
+    }
+
+    public ValueTask<bool> RelayOffAsync(CancellationToken token = default)
+    {
+        return ProcessAsync(0x13, RelayOffCommand, token);
+    }
+
     public ValueTask<bool> UpdateAsync(CancellationToken token = default)
     {
         ClearValues();
@@ -132,6 +146,7 @@ public sealed class WattchClient : IDisposable
 
         return code switch
         {
+            0x12 or 0x13 => true,
             0x18 => ProcessMeasureResponse(buffer.AsSpan(4, read - 5)),
             _ => false
         };
