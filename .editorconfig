@@ -569,7 +569,7 @@ dotnet_diagnostic.IDE0304.severity = warning
 dotnet_diagnostic.IDE0305.severity = none
 
 # csharp_prefer_static_anonymous_function
-dotnet_diagnostic.IDE0320.severity = warning
+dotnet_diagnostic.IDE0320.severity = none
 
 # csharp_prefer_system_threading_lock
 dotnet_diagnostic.IDE0330.severity = warning
