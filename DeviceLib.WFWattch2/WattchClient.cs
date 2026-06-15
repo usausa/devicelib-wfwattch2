@@ -75,6 +75,8 @@ public sealed class WattchClient : IDisposable
             return ValueTask.CompletedTask;
         }
 
+        Close();
+
         socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
         {
             NoDelay = true,
@@ -132,7 +134,7 @@ public sealed class WattchClient : IDisposable
         }
 
         var read = await ReadAsync(socket, buffer, token).ConfigureAwait(false);
-        if (read < 0)
+        if (read < 5)
         {
             return false;
         }
@@ -154,6 +156,11 @@ public sealed class WattchClient : IDisposable
 
     private bool ProcessMeasureResponse(ReadOnlySpan<byte> response)
     {
+        if (response.IsEmpty)
+        {
+            return false;
+        }
+
         var error = response[0];
         if (error != 0)
         {
@@ -200,12 +207,12 @@ public sealed class WattchClient : IDisposable
             var read = await socket.ReceiveAsync(buffer[offset..], cancel).ConfigureAwait(false);
             if (read <= 0)
             {
-                break;
+                return -1;
             }
 
             offset += read;
         }
-        while (((offset < 3) || (offset < (buffer.Span[1] + 4))) && (offset < buffer.Length));
+        while (((offset < 3) || (offset < (((buffer.Span[1] << 8) | buffer.Span[2]) + 4))) && (offset < buffer.Length));
 
         return offset;
     }

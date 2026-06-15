@@ -4,13 +4,13 @@ internal static class Helper
 {
     public static IPAddress ResolveHost(string host)
     {
-        try
+        if (IPAddress.TryParse(host, out var address))
         {
-            return IPAddress.Parse(host);
+            return address;
         }
-        catch (FormatException)
-        {
-            return Dns.GetHostEntry(host).AddressList[0];
-        }
+
+        var addresses = Dns.GetHostEntry(host).AddressList;
+        var ipv4 = Array.Find(addresses, static a => a.AddressFamily == AddressFamily.InterNetwork);
+        return ipv4 ?? throw new InvalidOperationException($"No IPv4 address found. host=[{host}]");
     }
 }
