@@ -19,6 +19,6 @@
     <Project Path="DeviceTool.WFWattch2/DeviceTool.WFWattch2.csproj" />
   </Folder>
   <Folder Name="/Example/">
-    <Project Path="Example/Example.csproj" />
+    <Project Path="Example/Example.csproj" DefaultStartup="true" />
   </Folder>
 </Solution>
