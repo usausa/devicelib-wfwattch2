@@ -22,6 +22,8 @@ public sealed class WattchClient : IDisposable
 
     private bool disposed;
 
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
+
     public byte LastError { get; private set; }
 
     public DateTime? LastUpdate { get; private set; }
@@ -128,30 +130,40 @@ public sealed class WattchClient : IDisposable
             return false;
         }
 
-        if (await WriteAsync(socket, command.AsMemory(), token).ConfigureAwait(false) < 0)
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        cts.CancelAfter(Timeout);
+
+        try
+        {
+            if (await WriteAsync(socket, command.AsMemory(), cts.Token).ConfigureAwait(false) < 0)
+            {
+                return false;
+            }
+
+            var read = await ReadAsync(socket, buffer, cts.Token).ConfigureAwait(false);
+            if (read < 5)
+            {
+                return false;
+            }
+
+            if ((buffer[0] != 0xAA) ||
+                (buffer[3] != code) ||
+                (CalcCrc8(buffer.AsSpan(3, read - 4)) != buffer[read - 1]))
+            {
+                return false;
+            }
+
+            return code switch
+            {
+                0x12 or 0x13 => true,
+                0x18 => ProcessMeasureResponse(buffer.AsSpan(4, read - 5)),
+                _ => false
+            };
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
             return false;
         }
-
-        var read = await ReadAsync(socket, buffer, token).ConfigureAwait(false);
-        if (read < 5)
-        {
-            return false;
-        }
-
-        if ((buffer[0] != 0xAA) ||
-            (buffer[3] != code) ||
-            (CalcCrc8(buffer.AsSpan(3, read - 4)) != buffer[read - 1]))
-        {
-            return false;
-        }
-
-        return code switch
-        {
-            0x12 or 0x13 => true,
-            0x18 => ProcessMeasureResponse(buffer.AsSpan(4, read - 5)),
-            _ => false
-        };
     }
 
     private bool ProcessMeasureResponse(ReadOnlySpan<byte> response)
@@ -212,7 +224,7 @@ public sealed class WattchClient : IDisposable
 
             offset += read;
         }
-        while (((offset < 3) || (offset < (buffer.Span[1] + 4))) && (offset < buffer.Length));
+        while (((offset < 3) || (offset < (((buffer.Span[1] << 8) + buffer.Span[2]) + 4))) && (offset < buffer.Length));
 
         return offset;
     }
@@ -226,9 +238,20 @@ public sealed class WattchClient : IDisposable
         ((long)buffer[1] << 8) +
         buffer[0];
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static DateTime ReadDateTime(ReadOnlySpan<byte> buffer) =>
-        new(buffer[5] + 2000, buffer[4], buffer[3], buffer[2], buffer[1], buffer[0]);
+    private static DateTime? ReadDateTime(ReadOnlySpan<byte> buffer)
+    {
+        var year = buffer[5] + 2000;
+        int month = buffer[4];
+        int day = buffer[3];
+        if ((month < 1) || (month > 12) ||
+            (day < 1) || (day > DateTime.DaysInMonth(year, month)) ||
+            (buffer[2] > 23) || (buffer[1] > 59) || (buffer[0] > 59))
+        {
+            return null;
+        }
+
+        return new DateTime(year, month, day, buffer[2], buffer[1], buffer[0]);
+    }
 
     private static byte[] MakeCommand(ReadOnlySpan<byte> payload)
     {
