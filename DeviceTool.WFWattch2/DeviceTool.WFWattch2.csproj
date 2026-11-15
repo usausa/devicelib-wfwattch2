@@ -16,8 +16,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.CommandLine" Version="2.0.11" />
-    <PackageReference Include="Usa.Smart.CommandLine.Hosting" Version="2.12.0" />
+    <PackageReference Include="System.CommandLine" Version="3.0.0" />
+    <PackageReference Include="Usa.Smart.CommandLine.Hosting" Version="3.0.0" />
   </ItemGroup>
 
   <ItemGroup>
